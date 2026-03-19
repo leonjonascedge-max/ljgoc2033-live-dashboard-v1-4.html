@@ -1,0 +1,2159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>LJGOC2033 — Live Agent Dashboard v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:        #050d14;
+    --bg2:       #091520;
+    --bg3:       #0d1e2e;
+    --border:    #0e2a3a;
+    --cyan:      #00d4aa;
+    --cyan-dim:  #007a62;
+    --cyan-glow: rgba(0,212,170,0.12);
+    --gold:      #f5c842;
+    --gold-dim:  #8a6e00;
+    --gold-glow: rgba(245,200,66,0.12);
+    --red:       #ff4d4d;
+    --red-dim:   #7a1a1a;
+    --green:     #39d98a;
+    --muted:     #3a5a70;
+    --text:      #c8dde8;
+    --text-dim:  #5a7a8a;
+    --mono:      'Share Tech Mono', monospace;
+    --head:      'Barlow Condensed', sans-serif;
+    --body:      'Barlow', sans-serif;
+    --active-accent: var(--cyan);
+    --active-glow:   var(--cyan-glow);
+  }
+  .yen-mode {
+    --active-accent: var(--gold);
+    --active-glow:   var(--gold-glow);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 13px;
+    min-height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content:'';
+    position:fixed;
+    inset:0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.07) 2px,
+      rgba(0,0,0,0.07) 4px
+    );
+    pointer-events:none;
+    z-index:9999;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    font-family: var(--head);
+    font-weight: 900;
+    font-size: 22px;
+    letter-spacing: 0.08em;
+    color: var(--active-accent);
+    text-transform: uppercase;
+    text-shadow: 0 0 18px var(--active-accent);
+    transition: color 0.4s, text-shadow 0.4s;
+  }
+  .logo span { color: var(--text-dim); font-weight: 300; }
+  .header-center {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .session-clock {
+    font-family: var(--mono);
+    font-size: 18px;
+    color: var(--active-accent);
+    letter-spacing: 0.05em;
+    text-shadow: 0 0 10px var(--active-accent);
+    transition: color 0.4s, text-shadow 0.4s;
+  }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .mode-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--head);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .toggle-pill {
+    width: 46px;
+    height: 24px;
+    border-radius: 12px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    position: relative;
+    cursor: pointer;
+    transition: background 0.3s;
+  }
+  .toggle-pill::after {
+    content:'';
+    position: absolute;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    top: 2px; left: 3px;
+    background: var(--cyan);
+    transition: transform 0.3s, background 0.3s;
+    box-shadow: 0 0 8px var(--cyan);
+  }
+  .toggle-pill.yen::after {
+    transform: translateX(22px);
+    background: var(--gold);
+    box-shadow: 0 0 8px var(--gold);
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity:1; transform: scale(1); }
+    50%      { opacity:0.5; transform: scale(0.7); }
+  }
+
+  /* ─── LAYOUT ─── */
+  .dashboard {
+    display: grid;
+    grid-template-columns: 260px 1fr 300px;
+    grid-template-rows: auto 1fr auto;
+    gap: 1px;
+    background: var(--border);
+    height: calc(100vh - 56px);
+  }
+
+  .panel {
+    background: var(--bg2);
+    padding: 16px;
+    overflow-y: auto;
+  }
+  .panel-title {
+    font-family: var(--head);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .panel-title .accent {
+    color: var(--active-accent);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    transition: color 0.4s;
+  }
+
+  /* ─── LEFT: PAIR SELECTOR ─── */
+  .pair-list { display: flex; flex-direction: column; gap: 4px; }
+  .pair-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 12px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .pair-item:hover { background: var(--bg3); border-color: var(--border); }
+  .pair-item.active {
+    background: var(--active-glow);
+    border-color: var(--active-accent);
+  }
+  .pair-name { font-weight: 700; color: var(--text); letter-spacing: 0.06em; }
+  .pair-item.active .pair-name { color: var(--active-accent); text-shadow: 0 0 8px var(--active-accent); }
+  .pair-price { font-size: 11px; color: var(--text-dim); }
+  .pair-item.active .pair-price { color: var(--text); }
+  .pair-change { font-size: 10px; }
+  .pair-change.up { color: var(--green); }
+  .pair-change.down { color: var(--red); }
+  .pair-badge {
+    font-size: 8px;
+    font-family: var(--head);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 2px 5px;
+    border-radius: 2px;
+    text-transform: uppercase;
+  }
+  .badge-setup { background: rgba(0,212,170,0.15); color: var(--cyan); border: 1px solid var(--cyan-dim); }
+  .badge-yen   { background: rgba(245,200,66,0.15); color: var(--gold); border: 1px solid var(--gold-dim); }
+  .badge-watch { background: rgba(58,90,112,0.3); color: var(--muted); border: 1px solid var(--muted); }
+  .section-sep {
+    font-family: var(--head);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    padding: 10px 4px 4px;
+  }
+
+  /* ─── CENTER: MAIN ANALYSIS ─── */
+  .center-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: var(--border);
+    grid-row: 1 / 3;
+  }
+  .live-feed {
+    background: var(--bg2);
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .pair-header {
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+  .pair-big {
+    font-family: var(--head);
+    font-size: 42px;
+    font-weight: 900;
+    color: var(--active-accent);
+    letter-spacing: 0.03em;
+    text-shadow: 0 0 24px var(--active-accent);
+    line-height: 1;
+    transition: color 0.4s, text-shadow 0.4s;
+  }
+  .pair-meta { padding-bottom: 6px; }
+  .pair-meta-price {
+    font-family: var(--mono);
+    font-size: 26px;
+    color: var(--text);
+    letter-spacing: 0.04em;
+  }
+  .pair-meta-sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+  .spread-badge {
+    margin-left: auto;
+    padding-bottom: 8px;
+    text-align: right;
+  }
+  .spread-val {
+    font-family: var(--mono);
+    font-size: 20px;
+    color: var(--text);
+  }
+  .spread-lbl {
+    font-family: var(--head);
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  /* OHLCV mini row */
+  .ohlcv-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .ohlcv-cell {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+  }
+  .ohlcv-lbl {
+    font-family: var(--head);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .ohlcv-val {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+  }
+  .ohlcv-val.highlight { color: var(--active-accent); }
+
+  /* ATR block */
+  .atr-block {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .atr-cell {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .atr-cell::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px; height: 100%;
+    background: var(--active-accent);
+    opacity: 0.6;
+    transition: background 0.4s;
+  }
+  .atr-lbl {
+    font-family: var(--head);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .atr-val {
+    font-family: var(--mono);
+    font-size: 16px;
+    color: var(--active-accent);
+    text-shadow: 0 0 8px var(--active-accent);
+    transition: color 0.4s, text-shadow 0.4s;
+  }
+  .atr-sub {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 3px;
+  }
+
+  /* Setup output area */
+  .setup-area {
+    background: var(--bg2);
+    padding: 16px 20px;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .system-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .sys-tab {
+    flex: 1;
+    padding: 9px;
+    text-align: center;
+    font-family: var(--head);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    cursor: pointer;
+    background: var(--bg3);
+    border: none;
+    transition: all 0.2s;
+  }
+  .sys-tab.active {
+    background: var(--active-glow);
+    color: var(--active-accent);
+    text-shadow: 0 0 8px var(--active-accent);
+  }
+  .sys-tab:hover:not(.active) { color: var(--text); }
+
+  /* Trade plan output */
+  .trade-plan {
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .trade-plan.visible { display: flex; }
+
+  .setup-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .setup-card:hover { border-color: var(--active-accent); }
+  .setup-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: rgba(0,0,0,0.2);
+    border-bottom: 1px solid var(--border);
+  }
+  .setup-card-title {
+    font-family: var(--head);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--active-accent);
+    transition: color 0.4s;
+  }
+  .quality-badge {
+    font-family: var(--head);
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    padding: 3px 8px;
+    border-radius: 2px;
+    text-transform: uppercase;
+  }
+  .q-a { background: rgba(57,217,138,0.15); color: var(--green); border: 1px solid var(--green); }
+  .q-b { background: rgba(245,200,66,0.15); color: var(--gold); border: 1px solid var(--gold); }
+  .setup-card-body { padding: 12px 14px; }
+  .plan-line {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.8;
+    display: flex;
+    gap: 8px;
+  }
+  .plan-label { color: var(--text-dim); min-width: 52px; }
+  .plan-val { color: var(--text); }
+  .plan-val.entry { color: var(--active-accent); font-weight: 700; }
+  .plan-val.sl    { color: var(--red); }
+  .plan-val.tp    { color: var(--green); }
+  .plan-val.risk  { color: var(--gold); }
+  .plan-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 8px 0;
+  }
+  .plan-footer {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .footer-item {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  .footer-item span { color: var(--text); }
+
+  /* Rejected notice */
+  .rejected-notice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px;
+    background: var(--red-dim);
+    border: 1px solid var(--red);
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--red);
+  }
+  .rejected-notice .rej-icon { font-size: 16px; }
+
+  /* Scan button */
+  .scan-btn {
+    width: 100%;
+    padding: 12px;
+    background: var(--active-glow);
+    border: 1px solid var(--active-accent);
+    border-radius: 4px;
+    color: var(--active-accent);
+    font-family: var(--head);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 14px;
+    text-shadow: 0 0 8px var(--active-accent);
+    box-shadow: 0 0 12px var(--active-glow);
+  }
+  .scan-btn:hover {
+    background: var(--active-accent);
+    color: var(--bg);
+    text-shadow: none;
+  }
+  .scan-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* ─── RIGHT: NEWS GATE + SESSION + JOURNAL ─── */
+  .right-col {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: var(--border);
+  }
+
+  /* Session panel */
+  .session-panel { background: var(--bg2); padding: 14px 16px; }
+  .session-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .session-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 10px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11px;
+    transition: all 0.3s;
+  }
+  .session-item.active {
+    background: var(--active-glow);
+    border-color: var(--active-accent);
+  }
+  .session-name { color: var(--text-dim); }
+  .session-item.active .session-name { color: var(--text); }
+  .session-time { color: var(--text-dim); font-size: 10px; }
+  .session-item.active .session-time { color: var(--active-accent); }
+  .session-state {
+    font-family: var(--head);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .session-state.open  { color: var(--green); }
+  .session-state.closed { color: var(--muted); }
+
+  /* News gate */
+  .news-panel { background: var(--bg2); padding: 14px 16px; flex: 1; overflow-y: auto; }
+  .news-gate-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+    font-family: var(--head);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .gate-clear { background: rgba(57,217,138,0.1); border: 1px solid var(--green); color: var(--green); }
+  .gate-warn  { background: rgba(255,77,77,0.1);  border: 1px solid var(--red);   color: var(--red); }
+  .news-list { display: flex; flex-direction: column; gap: 6px; }
+  .news-item {
+    padding: 8px 10px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    border-left: 3px solid var(--muted);
+  }
+  .news-item.high   { border-left-color: var(--red); }
+  .news-item.medium { border-left-color: var(--gold); }
+  .news-item.low    { border-left-color: var(--muted); }
+  .news-item-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 3px;
+  }
+  .news-pair  { font-family: var(--mono); font-size: 10px; color: var(--active-accent); font-weight: 700; }
+  .news-time  { font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
+  .news-title { font-size: 11px; color: var(--text); }
+  .news-impact {
+    font-family: var(--head);
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+  .impact-high   { color: var(--red); }
+  .impact-medium { color: var(--gold); }
+  .impact-low    { color: var(--muted); }
+
+  /* Journal */
+  .journal-panel { background: var(--bg2); padding: 14px 16px; }
+  .journal-list { display: flex; flex-direction: column; gap: 5px; }
+  .journal-item {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+  }
+  .journal-time { font-family: var(--mono); font-size: 10px; color: var(--text-dim); white-space: nowrap; margin-top: 1px; }
+  .journal-msg  { color: var(--text); line-height: 1.4; }
+  .journal-msg .j-accent { color: var(--active-accent); transition: color 0.4s; }
+  .journal-msg .j-warn   { color: var(--red); }
+  .journal-msg .j-ok     { color: var(--green); }
+
+  /* ─── BOTTOM STATUS BAR ─── */
+  .status-bar {
+    grid-column: 1 / -1;
+    background: var(--bg3);
+    border-top: 1px solid var(--border);
+    padding: 6px 20px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  .sb-item { display: flex; gap: 6px; align-items: center; }
+  .sb-item .sb-label { color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+  .sb-item .sb-val   { color: var(--text); }
+  .sb-item .sb-ok    { color: var(--green); }
+  .sb-item .sb-warn  { color: var(--red); }
+  .sb-sep { width: 1px; height: 12px; background: var(--border); }
+  .sb-disclaimer {
+    margin-left: auto;
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+
+  /* Loading shimmer */
+  @keyframes shimmer {
+    0%   { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+  }
+  .shimmer {
+    background: linear-gradient(90deg, var(--bg3) 25%, var(--border) 50%, var(--bg3) 75%);
+    background-size: 400px 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+    border-radius: 3px;
+    height: 14px;
+  }
+
+  /* ─── PAIR DROPDOWN ─── */
+  .dropdown-wrap {
+    margin-bottom: 12px;
+  }
+  .pair-dropdown {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--active-accent);
+    border-radius: 4px;
+    color: var(--active-accent);
+    font-family: var(--head);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 10px 12px;
+    outline: none;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2300D4AA' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    text-shadow: 0 0 8px var(--active-accent);
+    box-shadow: 0 0 10px var(--active-glow);
+    transition: border-color 0.4s, color 0.4s;
+  }
+  .pair-dropdown optgroup {
+    background: var(--bg2);
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+  }
+  .pair-dropdown option {
+    background: var(--bg2);
+    color: var(--text);
+    font-size: 13px;
+    padding: 6px;
+  }
+
+  /* Active pair card */
+  .pair-card {
+    background: var(--bg3);
+    border: 1px solid var(--active-accent);
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 0 12px var(--active-glow);
+    transition: border-color 0.4s, box-shadow 0.4s;
+  }
+  .pc-name {
+    font-family: var(--head);
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    color: var(--active-accent);
+    text-shadow: 0 0 12px var(--active-accent);
+    transition: color 0.4s;
+  }
+  .pc-price {
+    font-family: var(--mono);
+    font-size: 20px;
+    color: var(--text);
+    margin: 4px 0;
+  }
+  .pc-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .pc-change { font-family: var(--mono); font-size: 11px; }
+  .pc-change.up   { color: var(--green); }
+  .pc-change.down { color: var(--red); }
+  .pc-badge {
+    font-family: var(--head);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    padding: 2px 6px;
+    border-radius: 2px;
+    text-transform: uppercase;
+  }
+  .pc-badge.setup { background: rgba(0,212,170,0.15); color: var(--cyan); border: 1px solid var(--cyan-dim); }
+  .pc-badge.watch { background: rgba(58,90,112,0.2); color: var(--muted); border: 1px solid var(--muted); }
+  .pc-atr {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  .pc-atr span { color: var(--active-accent); transition: color 0.4s; }
+
+  /* Mini ticker */
+  .mini-ticker {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .ticker-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 8px;
+    border-radius: 3px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: border-color 0.2s;
+    font-family: var(--mono);
+    font-size: 10px;
+  }
+  .ticker-item:hover { border-color: var(--active-accent); }
+  .ticker-item.active { border-color: var(--active-accent); background: var(--active-glow); }
+  .ticker-sym { font-weight: 700; color: var(--text); font-size: 10px; }
+  .ticker-item.active .ticker-sym { color: var(--active-accent); }
+  .ticker-price { color: var(--text-dim); }
+  .ticker-chg { font-size: 9px; }
+  .ticker-chg.up   { color: var(--green); }
+  .ticker-chg.down { color: var(--red); }
+
+  /* ─── MANUAL INPUT PANEL ─── */
+  .manual-input-panel.collapsed .input-grid,
+  .manual-input-panel.collapsed .dir-row,
+  .manual-input-panel.collapsed .apply-btn,
+  .manual-input-panel.collapsed .input-label:not(.panel-toggle-label) {
+    display: none;
+  }
+  .manual-input-panel.collapsed { padding: 10px 14px; }
+  .panel-toggle-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+    margin-bottom: 0 !important;
+  }
+  .panel-toggle-label .toggle-arrow {
+    font-size: 10px;
+    color: var(--active-accent);
+    transition: transform 0.3s;
+  }
+  .manual-input-panel.collapsed .toggle-arrow { transform: rotate(-90deg); }
+  .manual-input-panel:not(.collapsed) .toggle-arrow { transform: rotate(0deg); }
+  .panel-summary {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--green);
+    margin-top: 4px;
+    display: none;
+  }
+  .manual-input-panel.collapsed .panel-summary { display: block; }
+
+
+  .manual-input-panel {
+    background: var(--bg3);
+    border: 1px solid var(--active-accent);
+    border-radius: 6px;
+    padding: 14px;
+    margin-bottom: 14px;
+    box-shadow: 0 0 16px var(--active-glow);
+    transition: border-color 0.4s, box-shadow 0.4s;
+  }
+  .manual-input-title {
+    font-family: var(--head);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--active-accent);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: color 0.4s;
+  }
+  .manual-input-title::after { content:''; flex:1; height:1px; background:var(--border); }
+  .input-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .input-group { display: flex; flex-direction: column; gap: 5px; }
+  .input-group.full { grid-column: 1 / -1; }
+  .input-label {
+    font-family: var(--head);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .input-label span { color: var(--active-accent); font-size: 8px; margin-left: 4px; transition: color 0.4s; }
+  .manual-input {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 9px 10px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-appearance: none;
+  }
+  .manual-input:focus { border-color: var(--active-accent); box-shadow: 0 0 8px var(--active-glow); }
+  .manual-input::placeholder { color: var(--muted); font-size: 12px; }
+  .dir-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .dir-btn {
+    padding: 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    color: var(--text-dim);
+    font-family: var(--head);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .dir-btn.sell.active { background: rgba(255,77,77,0.15); border-color: var(--red); color: var(--red); }
+  .dir-btn.buy.active  { background: rgba(57,217,138,0.15); border-color: var(--green); color: var(--green); }
+  .dir-btn:hover:not(.active) { border-color: var(--muted); color: var(--text); }
+  .input-hint { font-family: var(--mono); font-size: 9px; color: var(--text-dim); margin-top: 3px; }
+  .apply-btn {
+    width: 100%;
+    padding: 10px;
+    background: var(--active-glow);
+    border: 1px solid var(--active-accent);
+    border-radius: 4px;
+    color: var(--active-accent);
+    font-family: var(--head);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-shadow: 0 0 8px var(--active-accent);
+  }
+  .apply-btn:hover { background: var(--active-accent); color: var(--bg); text-shadow: none; }
+  .input-applied {
+    display: flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 10px; color: var(--green);
+    margin-top: 8px; min-height: 16px;
+  }
+
+  /* ─── MOBILE RESPONSIVE ─── */
+  @media (max-width: 768px) {
+    .dashboard {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto;
+      height: auto;
+      overflow-y: auto;
+    }
+    .panel { grid-row: auto !important; }
+    .live-feed { order: 1; }
+    .setup-area { order: 2; min-height: 60vh; }
+    .session-panel { order: 3; }
+    .news-panel { order: 4; }
+    .journal-panel { order: 5; }
+    .status-bar {
+      grid-column: 1;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 9px;
+    }
+    .sb-disclaimer { margin-left: 0; width: 100%; }
+    .pair-big { font-size: 28px; }
+    .pair-meta-price { font-size: 20px; }
+    .ohlcv-row { grid-template-columns: repeat(3, 1fr); }
+    .atr-block { grid-template-columns: 1fr 1fr; }
+    header { padding: 10px 14px; }
+    .logo { font-size: 17px; }
+    .session-clock { font-size: 14px; }
+    .input-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .manual-input { font-size: 16px; padding: 10px; }
+    .scan-btn { font-size: 14px; padding: 14px; }
+    .sys-tab { font-size: 12px; padding: 11px; }
+    .setup-card-title { font-size: 11px; }
+    .plan-line { font-size: 12px; }
+    .plan-label { min-width: 44px; }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* Animated accent line */
+  @keyframes accentPulse {
+    0%,100% { opacity: 0.6; }
+    50%      { opacity: 1; }
+  }
+  .atr-cell::before { animation: accentPulse 3s ease-in-out infinite; }
+
+  /* Price flash */
+  @keyframes flashUp   { 0% { color: var(--green); } 100% { color: var(--text); } }
+  @keyframes flashDown { 0% { color: var(--red); }   100% { color: var(--text); } }
+  .flash-up   { animation: flashUp   0.6s ease-out; }
+  .flash-down { animation: flashDown 0.6s ease-out; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">LJGOC<span>2033</span> <span style="font-size:13px;letter-spacing:0.05em">LIVE AGENT</span></div>
+  <div class="header-center">
+    <div class="session-clock" id="mainClock">--:--:-- SAST</div>
+  </div>
+  <div class="header-right">
+    <div class="mode-toggle">
+      <span id="modeLabel">STD</span>
+      <div class="toggle-pill" id="modeToggle" onclick="toggleMode()"></div>
+      <span>YEN</span>
+    </div>
+    <div class="status-dot" title="MT5 Simulated Feed Active"></div>
+  </div>
+</header>
+
+<!-- DASHBOARD GRID -->
+<div class="dashboard" id="dashboard">
+
+  <!-- LEFT: PAIR SELECTOR DROPDOWN -->
+  <div class="panel" style="grid-row:1/3">
+    <div class="panel-title">Pairs <span class="accent" id="pairCount">0 ACTIVE</span></div>
+
+    <!-- Dropdown selector -->
+    <div class="dropdown-wrap">
+      <select class="pair-dropdown" id="pairDropdown" onchange="selectPairFromDropdown()">
+        <optgroup label="── MAJORS ──">
+          <option value="EURUSD">EURUSD</option>
+          <option value="GBPUSD">GBPUSD</option>
+          <option value="AUDUSD">AUDUSD</option>
+          <option value="USDCAD">USDCAD</option>
+          <option value="USDJPY">USDJPY</option>
+        </optgroup>
+        <optgroup label="── COMMODITIES ──">
+          <option value="XAUUSD" selected>XAUUSD</option>
+        </optgroup>
+        <optgroup label="── US INDICES ──">
+          <option value="US30">US30 (Dow)</option>
+          <option value="US100">US100 (Nasdaq)</option>
+          <option value="US500">US500 (S&amp;P 500)</option>
+        </optgroup>
+      </select>
+    </div>
+
+    <!-- Active pair price card -->
+    <div class="pair-card" id="pairCard">
+      <div class="pc-name" id="pcName">XAUUSD</div>
+      <div class="pc-price" id="pcPrice">—</div>
+      <div class="pc-row">
+        <span class="pc-change" id="pcChange">—</span>
+        <span class="pc-badge" id="pcBadge">WATCH</span>
+      </div>
+      <div class="pc-atr">ATR(H1): <span id="pcATR">—</span></div>
+    </div>
+
+    <!-- Yen pair list (shows only in Yen mode) -->
+    <div id="yenPairSection" style="display:none">
+      <div class="section-sep" style="margin-top:14px">Yen Edition</div>
+      <div class="pair-list" id="yenPairList"></div>
+    </div>
+
+    <!-- All pairs mini ticker -->
+    <div class="section-sep" style="margin-top:14px" id="tickerLabel">Live Prices</div>
+    <div class="mini-ticker" id="miniTicker"></div>
+  </div>
+
+  <!-- CENTER TOP: LIVE FEED -->
+  <div class="live-feed">
+    <div class="pair-header">
+      <div class="pair-big" id="activePairName">XAUUSD</div>
+      <div class="pair-meta">
+        <div class="pair-meta-price" id="activeBid">—</div>
+        <div class="pair-meta-sub" id="activeChange">— pips | — %</div>
+      </div>
+      <div class="spread-badge">
+        <div class="spread-val" id="activeSpread">—</div>
+        <div class="spread-lbl">Spread (pts)</div>
+      </div>
+    </div>
+    <div class="ohlcv-row">
+      <div class="ohlcv-cell"><div class="ohlcv-lbl">Open</div><div class="ohlcv-val" id="oOpen">—</div></div>
+      <div class="ohlcv-cell"><div class="ohlcv-lbl">High</div><div class="ohlcv-val highlight" id="oHigh">—</div></div>
+      <div class="ohlcv-cell"><div class="ohlcv-lbl">Low</div><div class="ohlcv-val highlight" id="oLow">—</div></div>
+      <div class="ohlcv-cell"><div class="ohlcv-lbl">Close</div><div class="ohlcv-val" id="oClose">—</div></div>
+      <div class="ohlcv-cell"><div class="ohlcv-lbl">H1 ATR</div><div class="ohlcv-val highlight" id="oATR">—</div></div>
+    </div>
+    <div class="atr-block">
+      <div class="atr-cell">
+        <div class="atr-lbl">SL Cap (1.5× ATR)</div>
+        <div class="atr-val" id="slCap">—</div>
+        <div class="atr-sub">Hard Reject Threshold</div>
+      </div>
+      <div class="atr-cell">
+        <div class="atr-lbl">SL Base (0.5× ATR)</div>
+        <div class="atr-val" id="slBase">—</div>
+        <div class="atr-sub">From Wick Tip</div>
+      </div>
+      <div class="atr-cell">
+        <div class="atr-lbl" id="atr3lbl">OCO Buffer</div>
+        <div class="atr-val" id="atr3val">2 pip</div>
+        <div class="atr-sub" id="atr3sub">Standard</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER BOTTOM: SETUP OUTPUT -->
+  <div class="setup-area">
+
+    <!-- MANUAL INPUT PANEL v1.1 -->
+    <div class="manual-input-panel" id="manualPanel">
+      <div class="manual-input-title panel-toggle-label" onclick="toggleManualPanel()">⊕ Manual Input Mode <span class="toggle-arrow">▼</span></div>
+      <div class="panel-summary" id="panelSummary">Tap to edit inputs</div>
+      <div class="input-grid">
+        <div class="input-group">
+          <div class="input-label">Bid Price <span>from MT5</span></div>
+          <input class="manual-input" id="inputBid" type="number" step="any" placeholder="e.g. 3245.80"/>
+          <div class="input-hint">Current bid from your MT5 app</div>
+        </div>
+        <div class="input-group">
+          <div class="input-label">H1 ATR <span>optional</span></div>
+          <input class="manual-input" id="inputATR" type="number" step="any" placeholder="auto"/>
+          <div class="input-hint">Leave blank to use estimate</div>
+        </div>
+        <div class="input-group">
+          <div class="input-label">Account Balance <span>USD</span></div>
+          <input class="manual-input" id="inputBalance" type="number" step="any" placeholder="10000"/>
+          <div class="input-hint">For 1% lot sizing</div>
+        </div>
+        <div class="input-group">
+          <div class="input-label">Risk % <span>per trade</span></div>
+          <input class="manual-input" id="inputRisk" type="number" step="0.1" placeholder="1" min="0.1" max="5"/>
+          <div class="input-hint">Default: 1%</div>
+        </div>
+      </div>
+      <div class="input-label" style="margin-bottom:8px">Direction</div>
+      <div class="dir-row">
+        <div class="dir-btn sell active" id="dirSell" onclick="setDirection('SELL')">▼ SELL</div>
+        <div class="dir-btn buy" id="dirBuy" onclick="setDirection('BUY')">▲ BUY</div>
+      </div>
+      <button class="apply-btn" onclick="applyManualInputs()">⊕ Apply and Scan</button>
+      <div class="input-applied" id="inputApplied"></div>
+    </div>
+
+    <button class="scan-btn" id="scanBtn" onclick="runScan()">⬡ Re-Scan with Current Values</button>
+    <div class="system-tabs">
+      <button class="sys-tab active" id="tabFib" onclick="switchTab('fib')">FibVCP v2.6</button>
+      <button class="sys-tab" id="tabWick" onclick="switchTab('wick')">WickPrint™ v3.1</button>
+    </div>
+    <div class="trade-plan visible" id="planFib"></div>
+    <div class="trade-plan" id="planWick"></div>
+  </div>
+
+  <!-- RIGHT TOP: SESSIONS -->
+  <div class="session-panel">
+    <div class="panel-title">Sessions <span class="accent">SAST</span></div>
+    <div class="session-grid" id="sessionGrid"></div>
+  </div>
+
+  <!-- RIGHT MID: NEWS GATE -->
+  <div class="news-panel">
+    <div class="panel-title">News Gate <span class="accent" id="gateLabel">CHECKING</span></div>
+    <div class="news-gate-status gate-clear" id="gateStatus">✓ Gate Clear — No High Impact Within 30 Min</div>
+    <div class="news-list" id="newsList"></div>
+  </div>
+
+  <!-- RIGHT BOTTOM: JOURNAL -->
+  <div class="journal-panel">
+    <div class="panel-title">Agent Journal <span class="accent" id="journalCount">0 EVENTS</span></div>
+    <div class="journal-list" id="journalList"></div>
+  </div>
+
+  <!-- BOTTOM STATUS BAR -->
+  <div class="status-bar">
+    <div class="sb-item"><span class="sb-label">MT5</span><span class="sb-val sb-ok" id="mt5Status">● Simulated</span></div>
+    <div class="sb-sep"></div>
+    <div class="sb-item"><span class="sb-label">Account</span><span class="sb-val" id="acctBalance">$10,000.00</span></div>
+    <div class="sb-sep"></div>
+    <div class="sb-item"><span class="sb-label">Risk/Trade</span><span class="sb-val">1%</span></div>
+    <div class="sb-sep"></div>
+    <div class="sb-item"><span class="sb-label">Mode</span><span class="sb-val" id="sbMode">Standard</span></div>
+    <div class="sb-sep"></div>
+    <div class="sb-item"><span class="sb-label">Active Pair</span><span class="sb-val" id="sbPair">XAUUSD</span></div>
+    <div class="sb-sep"></div>
+    <div class="sb-item"><span class="sb-label">Setups</span><span class="sb-val" id="sbSetups">—</span></div>
+    <div class="sb-disclaimer">For educational purposes only — not financial advice. © 2025–2026 Leon Jonas — LJGOC2033. All rights reserved.</div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ────────────────────────────────────────────────────────────────
+let manualBid     = null;
+let manualATR     = null;
+let manualBalance = 10000;
+let manualRisk    = 1.0;
+let manualDir     = 'SELL';
+let manualApplied = false;
+
+function toggleManualPanel() {
+  const panel = document.getElementById('manualPanel');
+  panel.classList.toggle('collapsed');
+}
+
+function setDirection(dir) {
+  manualDir = dir;
+  document.getElementById('dirSell').classList.toggle('active', dir === 'SELL');
+  document.getElementById('dirBuy').classList.toggle('active',  dir === 'BUY');
+}
+
+function applyManualInputs() {
+  const bidRaw  = document.getElementById('inputBid').value.trim();
+  const atrRaw  = document.getElementById('inputATR').value.trim();
+  const balRaw  = document.getElementById('inputBalance').value.trim();
+  const riskRaw = document.getElementById('inputRisk').value.trim();
+  if (!bidRaw) {
+    document.getElementById('inputApplied').innerHTML = '<span style="color:var(--red)">✕ Bid price required</span>';
+    return;
+  }
+  const bid = parseFloat(bidRaw);
+  if (isNaN(bid) || bid <= 0) {
+    document.getElementById('inputApplied').innerHTML = '<span style="color:var(--red)">✕ Invalid bid price</span>';
+    return;
+  }
+  manualBid     = bid;
+  manualATR     = atrRaw  ? parseFloat(atrRaw)  : null;
+  manualBalance = balRaw  ? parseFloat(balRaw)  : 10000;
+  manualRisk    = riskRaw ? parseFloat(riskRaw) : 1.0;
+  manualApplied = true;
+  if (liveData[activePair]) {
+    liveData[activePair].bid  = manualBid;
+    liveData[activePair].open = liveData[activePair].open || manualBid;
+    if (manualATR) liveData[activePair].atr = manualATR;
+  }
+  document.getElementById('acctBalance').textContent =
+    '$' + manualBalance.toLocaleString('en-ZA', {minimumFractionDigits:2});
+  const atrUsed  = manualATR || (liveData[activePair] ? liveData[activePair].atr : null);
+  const atrLabel = manualATR ? String(manualATR) : (atrUsed ? atrUsed + ' (est)' : 'est');
+  document.getElementById('inputApplied').innerHTML =
+    '✓ Applied — Bid: ' + manualBid + ' | ATR: ' + atrLabel + ' | ' + manualDir + ' | Risk: ' + manualRisk + '%';
+  updateActivePairDisplay();
+  addJournal('Manual input — <span class="j-accent">' + activePair + '</span> Bid: ' + manualBid + ' | ' + manualDir);
+
+  // Collapse panel and show summary
+  const panel = document.getElementById('manualPanel');
+  panel.classList.add('collapsed');
+  const summary = document.getElementById('panelSummary');
+  if(summary) summary.textContent = activePair + ' | Bid: ' + manualBid + ' | ATR: ' + atrLabel + ' | ' + manualDir + ' | ' + manualRisk + '%';
+
+  runScan();
+}
+
+let yenMode = false;
+let activePair = 'XAUUSD';
+let activeTab = 'fib';
+let journalEvents = [];
+let scanRunning = false;
+let scanFallbackTimer = null;
+
+// ─── PAIR DATA (Simulated MT5 feed) ──────────────────────────────────────
+const STD_PAIRS   = ['EURUSD','GBPUSD','AUDUSD','USDCAD','USDJPY','XAUUSD','US30','US100','US500'];
+const MAJOR_PAIRS = ['EURUSD','GBPUSD','AUDUSD','USDCAD','USDJPY'];
+const COMMOD_PAIRS= ['XAUUSD'];
+const INDEX_PAIRS = ['US30','US100','US500'];
+const YEN_PAIRS = ['GBPJPY','EURJPY','AUDJPY','USDJPY','CADJPY'];
+
+const BASE_PRICES = {
+  EURUSD:1.08420, GBPUSD:1.27340, AUDUSD:0.63150, USDCAD:1.36510, USDJPY:151.820,
+  XAUUSD:3245.80,
+  US30:41850.0, US100:18320.0, US500:5620.0,
+  GBPJPY:193.42, EURJPY:162.18, AUDJPY:98.74, USDJPY:151.82, CADJPY:111.24
+};
+const DIGITS = {
+  XAUUSD:2,EURUSD:5,USDCAD:5,US30:1,GBPUSD:5,USDCHF:5,
+  GBPJPY:3,EURJPY:3,AUDJPY:3,USDJPY:3,CADJPY:3
+};
+const SPREADS = {
+  EURUSD:9, GBPUSD:12, AUDUSD:13, USDCAD:13, USDJPY:14,
+  XAUUSD:18,
+  US30:30, US100:25, US500:20,
+  GBPJPY:22, EURJPY:20, AUDJPY:18, CADJPY:19
+};
+// H1 ATR in price units
+const ATR_H1 = {
+  EURUSD:0.00048, GBPUSD:0.00055, AUDUSD:0.00042, USDCAD:0.00052, USDJPY:0.64,
+  XAUUSD:8.40,
+  US30:180.0, US100:95.0, US500:28.0,
+  GBPJPY:0.85, EURJPY:0.72, AUDJPY:0.61, CADJPY:0.70
+};
+
+let liveData = {};
+function initLiveData() {
+  [...STD_PAIRS, ...YEN_PAIRS].forEach(p => {
+    const base = BASE_PRICES[p];
+    const d = DIGITS[p];
+    const atr = ATR_H1[p];
+    liveData[p] = {
+      bid: base,
+      ask: +(base + SPREADS[p] * Math.pow(10, -d)).toFixed(d),
+      open: +(base - (Math.random()-0.5)*atr).toFixed(d),
+      high: +(base + Math.random()*atr*0.8).toFixed(d),
+      low:  +(base - Math.random()*atr*0.8).toFixed(d),
+      atr:  atr,
+      status: Math.random() > 0.5 ? 'setup' : 'watch'
+    };
+  });
+}
+initLiveData();
+
+function tickPrices() {
+  [...STD_PAIRS, ...YEN_PAIRS].forEach(p => {
+    const d = liveData[p];
+    const drift = (Math.random()-0.5) * ATR_H1[p] * 0.015;
+    d.bid = +(d.bid + drift).toFixed(DIGITS[p]);
+    d.ask = +(d.bid + SPREADS[p] * Math.pow(10,-DIGITS[p])).toFixed(DIGITS[p]);
+    d.high = Math.max(d.high, d.bid);
+    d.low  = Math.min(d.low,  d.bid);
+  });
+}
+
+// ─── CLOCK ────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  // SAST = UTC+2 — derive directly from UTC to avoid local timezone offset interference
+  const sast = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+  const h = String(sast.getUTCHours()).padStart(2,'0');
+  const m = String(sast.getUTCMinutes()).padStart(2,'0');
+  const s = String(sast.getUTCSeconds()).padStart(2,'0');
+  document.getElementById('mainClock').textContent = `${h}:${m}:${s} SAST`;
+  updateSessions(sast.getUTCHours() + sast.getUTCMinutes()/60);
+}
+
+// ─── SESSIONS ─────────────────────────────────────────────────────────────
+
+// updateSessions() is only called by updateClock() which runs inside demoLoop().
+// demoLoop() is gated on !wsConnected, so this never conflicts with backend session data.
+function updateSessions(h) {
+  const sessions = yenMode
+    ? [{n:'S1 YEN Window',t:'07:00–12:00',r:[7,12]}]
+    : [
+        {n:'S1 London Open', t:'07:00–12:00',r:[7,12]},
+        {n:'S2 Mid-Morning',  t:'09:00–13:00',r:[9,13]},
+        {n:'S3 NY Session',   t:'14:30–22:00',r:[14.5,22]}
+      ];
+  const grid = document.getElementById('sessionGrid');
+  grid.innerHTML = sessions.map(s => {
+    const open = h >= s.r[0] && h < s.r[1];
+    return `<div class="session-item${open?' active':''}">
+      <span class="session-name">${s.n}</span>
+      <span class="session-time">${s.t}</span>
+      <span class="session-state ${open?'open':'closed'}">${open?'OPEN':'CLOSED'}</span>
+    </div>`;
+  }).join('');
+}
+
+// ─── NEWS DATA (Simulated) ─────────────────────────────────────────────────
+const NEWS_EVENTS = [
+  {pair:'USD',title:'FOMC Meeting Minutes',time:'15:00',impact:'high'},
+  {pair:'EUR',title:'ECB Interest Rate Decision',time:'13:45',impact:'high'},
+  {pair:'GBP',title:'UK CPI YoY',time:'09:00',impact:'high'},
+  {pair:'USD',title:'Initial Jobless Claims',time:'14:30',impact:'medium'},
+  {pair:'JPY',title:'BoJ Policy Rate',time:'03:00',impact:'high'},
+  {pair:'CAD',title:'Canada Retail Sales MoM',time:'13:30',impact:'medium'},
+  {pair:'AUD',title:'RBA Rate Decision',time:'04:30',impact:'high'},
+  {pair:'EUR',title:'German Manufacturing PMI',time:'09:55',impact:'medium'},
+  {pair:'USD',title:'Core PCE Price Index',time:'13:30',impact:'high'},
+  {pair:'GBP',title:'BoE Gov Bailey Speech',time:'17:30',impact:'medium'},
+];
+// renderNews() renders simulated data only when WS is offline.
+// When WS is connected, news/gate state is always overwritten by handleTick().
+function renderNews() {
+  if (wsConnected) return; // WS data takes priority; don't overwrite with fake data
+  const list = document.getElementById('newsList');
+  // Show next 6 events
+  const shown = NEWS_EVENTS.slice(0,6);
+  list.innerHTML = shown.map(e => `
+    <div class="news-item ${e.impact}">
+      <div class="news-item-top">
+        <span class="news-pair">${e.pair}</span>
+        <span class="news-time">${e.time} SAST</span>
+      </div>
+      <div class="news-title">${e.title}</div>
+      <div class="news-impact impact-${e.impact}">${e.impact.toUpperCase()} IMPACT</div>
+    </div>
+  `).join('');
+
+  // Gate check — if high impact within ±30 min of now
+  const now = new Date();
+  const sast = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+  const nowMin = sast.getUTCHours()*60 + sast.getUTCMinutes();
+  const highNear = shown.some(e => {
+    if(e.impact !== 'high') return false;
+    const [h,m] = e.time.split(':').map(Number);
+    const evMin = h*60+m;
+    return Math.abs(evMin - nowMin) <= 30;
+  });
+  const gateEl = document.getElementById('gateStatus');
+  const gateLbl = document.getElementById('gateLabel');
+  if(highNear) {
+    gateEl.className = 'news-gate-status gate-warn';
+    gateEl.textContent = '⚠ GATE ACTIVE — High Impact Event ≤30 Min';
+    gateLbl.textContent = 'BLOCKED';
+  } else {
+    gateEl.className = 'news-gate-status gate-clear';
+    gateEl.textContent = '✓ Gate Clear — No High Impact Within 30 Min';
+    gateLbl.textContent = 'CLEAR';
+  }
+}
+
+// ─── PAIR DROPDOWN & TICKER ───────────────────────────────────────────────
+function selectPairFromDropdown() {
+  const dd = document.getElementById('pairDropdown');
+  activePair = dd.value;
+  lastBid = null;
+  // Reset manual overrides
+  manualApplied = false;
+  manualBid = null;
+  manualATR = null;
+  document.getElementById('inputBid').value  = '';
+  document.getElementById('inputATR').value  = '';
+  document.getElementById('inputApplied').innerHTML = '';
+  document.getElementById('panelSummary').textContent = 'Tap to edit inputs';
+  clearPlans();
+  updateActivePairDisplay();
+  renderMiniTicker();
+  renderPairCard();
+  addJournal(`Pair switched to <span class="j-accent">${activePair}</span>`);
+}
+
+function renderPairCard() {
+  const d = liveData[activePair];
+  if (!d) return;
+  const dig = DIGITS[activePair] || 2;
+  const chg = d.bid - d.open;
+  const chgPct = ((chg / d.open) * 100).toFixed(2);
+  const up = chg >= 0;
+  document.getElementById('pcName').textContent  = activePair;
+  document.getElementById('pcPrice').textContent = d.bid.toFixed(dig);
+  document.getElementById('pcATR').textContent   = d.atr.toFixed(dig);
+  const chgEl = document.getElementById('pcChange');
+  chgEl.textContent  = (up?'+':'') + chg.toFixed(dig) + ' (' + (up?'+':'') + chgPct + '%)';
+  chgEl.className    = 'pc-change ' + (up ? 'up' : 'down');
+  const badgeEl = document.getElementById('pcBadge');
+  badgeEl.textContent = d.status === 'setup' ? 'SETUP' : 'WATCH';
+  badgeEl.className   = 'pc-badge ' + (d.status === 'setup' ? 'setup' : 'watch');
+}
+
+function renderMiniTicker() {
+  const pairs = yenMode ? YEN_PAIRS : STD_PAIRS;
+  const ticker = document.getElementById('miniTicker');
+  ticker.innerHTML = pairs.map(p => {
+    const d = liveData[p];
+    if (!d) return '';
+    const dig = DIGITS[p] || 2;
+    const chg = d.bid - d.open;
+    const up  = chg >= 0;
+    const chgPct = ((chg/d.open)*100).toFixed(2);
+    return `<div class="ticker-item${p===activePair?' active':''}" onclick="selectPairFromTicker('${p}')">
+      <span class="ticker-sym">${p}</span>
+      <span class="ticker-price">${d.bid.toFixed(dig)}</span>
+      <span class="ticker-chg ${up?'up':'down'}">${up?'+':''}${chgPct}%</span>
+    </div>`;
+  }).join('');
+  document.getElementById('pairCount').textContent = pairs.length + ' ACTIVE';
+}
+
+function selectPairFromTicker(p) {
+  activePair = p;
+  // Sync dropdown
+  const dd = document.getElementById('pairDropdown');
+  if (dd) dd.value = p;
+  lastBid = null;
+  // Reset manual overrides
+  manualApplied = false;
+  manualBid = null;
+  manualATR = null;
+  document.getElementById('inputBid').value  = '';
+  document.getElementById('inputATR').value  = '';
+  document.getElementById('inputApplied').innerHTML = '';
+  document.getElementById('panelSummary').textContent = 'Tap to edit inputs';
+  clearPlans();
+  updateActivePairDisplay();
+  renderMiniTicker();
+  renderPairCard();
+  addJournal(`Pair switched to <span class="j-accent">${p}</span>`);
+}
+
+function renderPairList() {
+  renderMiniTicker();
+  renderPairCard();
+  // Yen section toggle
+  const yenSection = document.getElementById('yenPairSection');
+  if (yenSection) yenSection.style.display = yenMode ? 'block' : 'none';
+  // Update dropdown options for yen mode
+  const dd = document.getElementById('pairDropdown');
+  if (dd) {
+    // Remove existing yen optgroup if present
+    const existing = dd.querySelector('optgroup[label="── YEN PAIRS ──"]');
+    if (existing) existing.remove();
+    if (yenMode) {
+      const og = document.createElement('optgroup');
+      og.label = '── YEN PAIRS ──';
+      YEN_PAIRS.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p; opt.textContent = p;
+        if (p === activePair) opt.selected = true;
+        og.appendChild(opt);
+      });
+      dd.appendChild(og);
+    }
+  }
+}
+
+// ─── ACTIVE PAIR DISPLAY ────────────────────────────────────────────────────
+let lastBid = null;
+function updateActivePairDisplay() {
+  const d = liveData[activePair];
+  const dig = DIGITS[activePair];
+  const atr = d.atr;
+
+  const bidEl = document.getElementById('activeBid');
+  const newBid = d.bid.toFixed(dig);
+  if(lastBid !== null && newBid !== lastBid) {
+    bidEl.classList.remove('flash-up','flash-down');
+    void bidEl.offsetWidth;
+    bidEl.classList.add(+newBid > +lastBid ? 'flash-up' : 'flash-down');
+  }
+  lastBid = newBid;
+  bidEl.textContent = newBid;
+
+  const chg = d.bid - d.open;
+  const chgPct = ((chg/d.open)*100).toFixed(2);
+  const pipVal = chg / Math.pow(10,-dig);
+  document.getElementById('activeChange').textContent =
+    `${chg>=0?'+':''}${pipVal.toFixed(1)} pts | ${chg>=0?'+':''}${chgPct}%`;
+
+  document.getElementById('activeSpread').textContent = SPREADS[activePair];
+  document.getElementById('oOpen').textContent  = d.open.toFixed(dig);
+  document.getElementById('oHigh').textContent  = d.high.toFixed(dig);
+  document.getElementById('oLow').textContent   = d.low.toFixed(dig);
+  document.getElementById('oClose').textContent = d.bid.toFixed(dig);
+  document.getElementById('oATR').textContent   = atr.toFixed(dig);
+
+  const slMult = yenMode ? 2.0 : 0.5;
+  document.getElementById('slBase').textContent = (slMult * atr).toFixed(dig);
+  document.getElementById('slCap').textContent  = (1.5 * atr).toFixed(dig);
+
+  if(yenMode) {
+    document.getElementById('atr3lbl').textContent  = 'OCO Buffer (YEN)';
+    document.getElementById('atr3val').textContent  = '3–5 pip';
+    document.getElementById('atr3sub').textContent  = 'Expanded';
+  } else {
+    document.getElementById('atr3lbl').textContent  = 'OCO Buffer';
+    document.getElementById('atr3val').textContent  = '2 pip';
+    document.getElementById('atr3sub').textContent  = 'Standard';
+  }
+
+  document.getElementById('activePairName').textContent = activePair;
+  document.getElementById('sbPair').textContent = activePair;
+}
+
+function selectPair(p) {
+  activePair = p;
+  const dd = document.getElementById('pairDropdown');
+  if (dd) dd.value = p;
+  lastBid = null;
+  updateActivePairDisplay();
+  renderPairList();
+  clearPlans();
+  addJournal(`Pair switched to <span class="j-accent">${p}</span>`);
+}
+
+// ─── MODE TOGGLE ───────────────────────────────────────────────────────────
+function toggleMode() {
+  yenMode = !yenMode;
+  document.getElementById('modeToggle').classList.toggle('yen', yenMode);
+  document.getElementById('modeLabel').textContent = yenMode ? 'YEN' : 'STD';
+  document.getElementById('sbMode').textContent = yenMode ? 'Yen Edition' : 'Standard';
+
+  const root = document.documentElement;
+  if(yenMode) {
+    root.style.setProperty('--active-accent', 'var(--gold)');
+    root.style.setProperty('--active-glow',   'var(--gold-glow)');
+    activePair = 'GBPJPY';
+    // Update dropdown arrow colour for yen
+    const dd = document.getElementById('pairDropdown');
+    if(dd) { dd.style.color='var(--gold)'; dd.style.borderColor='var(--gold)'; dd.value = activePair; }
+  } else {
+    root.style.setProperty('--active-accent', 'var(--cyan)');
+    root.style.setProperty('--active-glow',   'var(--cyan-glow)');
+    activePair = 'XAUUSD';
+    const dd = document.getElementById('pairDropdown');
+    if(dd) { dd.style.color=''; dd.style.borderColor=''; dd.value = activePair; }
+  }
+  lastBid = null;
+  clearPlans();
+  updateSbSetups();
+  renderPairList();
+  updateActivePairDisplay();
+  addJournal(`Mode switched to <span class="j-accent">${yenMode?'YEN EDITION':'STANDARD'}</span>`);
+}
+
+// ─── TAB SWITCH ────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('tabFib').classList.toggle('active',  tab==='fib');
+  document.getElementById('tabWick').classList.toggle('active', tab==='wick');
+  document.getElementById('planFib').classList.toggle('visible',  tab==='fib');
+  document.getElementById('planWick').classList.toggle('visible', tab==='wick');
+}
+
+function clearPlans() {
+  document.getElementById('planFib').innerHTML  = '';
+  document.getElementById('planWick').innerHTML = '';
+}
+
+// ─── SCAN ENGINE ───────────────────────────────────────────────────────────
+function runScan() {
+  if(scanRunning) return;
+  scanRunning = true;
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true;
+  btn.textContent = '⟳ Scanning…';
+  clearPlans();
+  addJournal(`Scan initiated on <span class="j-accent">${activePair}</span>`);
+
+  setTimeout(() => {
+    generateFibVCPPlan();
+    generateWickPrintPlan();
+    btn.disabled = false;
+    btn.textContent = '⬡ Run Setup Scan';
+    scanRunning = false;
+    addJournal(`Scan complete — plans generated for <span class="j-accent">${activePair}</span>`);
+  }, 1200);
+}
+
+function generateFibVCPPlan() {
+  const d = liveData[activePair];
+  const dig = DIGITS[activePair];
+  const atr = (manualApplied && manualATR) ? manualATR : d.atr;
+  const bid = manualApplied ? manualBid : d.bid;
+  const isSell = manualApplied ? (manualDir === 'SELL') : Math.random() > 0.5;
+  const dir = isSell ? -1 : 1;
+  const mult = yenMode ? 2.0 : 0.5;
+  const slDist = mult * atr;
+  const slCap  = 1.5 * atr;
+  const balance = manualApplied ? manualBalance : 10000;
+  const riskAmt = balance * (manualApplied ? manualRisk/100 : 0.01);
+
+  // Reject if SL > cap (simulate)
+  if(slDist > slCap * 0.95 && Math.random() > 0.7) {
+    document.getElementById('planFib').innerHTML = `
+      <div class="rejected-notice">
+        <span class="rej-icon">✕</span>
+        <span>FibVCP Setup REJECTED — ATR SL (${slDist.toFixed(dig)}) exceeds 1.5× Hard Cap (${slCap.toFixed(dig)}). No override.</span>
+      </div>`;
+    addJournal(`FibVCP <span class="j-warn">REJECTED</span> — ATR cap exceeded`);
+    return;
+  }
+
+  const quality = Math.random() > 0.4 ? 'A' : 'B';
+  const lots = +(riskAmt / (slDist * 100000 * 0.1)).toFixed(2);
+
+  // Zone 1: Fib 38.2/50/61.8 → Limit OCO
+  const z1_382 = +(bid + dir * atr * 0.382).toFixed(dig);
+  const z1_500 = +(bid + dir * atr * 0.500).toFixed(dig);
+  const z1_618 = +(bid + dir * atr * 0.618).toFixed(dig);
+  const sl1    = +(z1_618 - dir * slDist).toFixed(dig);
+  const tp1_1  = +(z1_382 + dir * atr * 1.0).toFixed(dig);
+  const tp1_2  = +(z1_382 + dir * atr * 1.5).toFixed(dig);
+  const tp1_3  = +(z1_382 + dir * atr * 2.0).toFixed(dig);
+  const tp1_4  = +(z1_382 + dir * atr * 2.8).toFixed(dig);
+
+  // Zone 2: 0/27.2/61.8 ext → Stop OCO
+  const z2_0   = +(bid + dir * atr * 1.0).toFixed(dig);
+  const z2_272 = +(bid + dir * atr * 1.272).toFixed(dig);
+  const z2_618 = +(bid + dir * atr * 1.618).toFixed(dig);
+  const sl2    = +(z2_0 - dir * slDist).toFixed(dig);
+  const tp2_1  = +(z2_0 + dir * atr * 1.0).toFixed(dig);
+  const tp2_2  = +(z2_0 + dir * atr * 1.8).toFixed(dig);
+  const tp2_3  = +(z2_0 + dir * atr * 2.6).toFixed(dig);
+  const tp2_4  = +(z2_0 + dir * atr * 3.5).toFixed(dig);
+
+  const dirLabel = isSell ? 'SELL' : 'BUY';
+
+  document.getElementById('planFib').innerHTML = `
+    <div class="setup-card">
+      <div class="setup-card-header">
+        <span class="setup-card-title">⬡ FibVCP v2.6 — ${activePair} ${dirLabel} — Layer 1 (Limit OCO Set A)</span>
+        <span class="quality-badge q-${quality.toLowerCase()}">Rating: ${quality}</span>
+      </div>
+      <div class="setup-card-body">
+        <div class="plan-line"><span class="plan-label">Entry</span><span class="plan-val entry">${z1_382} / ${z1_500} / ${z1_618}</span></div>
+        <div class="plan-line"><span class="plan-label">SL</span><span class="plan-val sl">${sl1}</span></div>
+        <div class="plan-line"><span class="plan-label">TP1</span><span class="plan-val tp">${tp1_1}</span></div>
+        <div class="plan-line"><span class="plan-label">TP2</span><span class="plan-val tp">${tp1_2}</span></div>
+        <div class="plan-line"><span class="plan-label">TP3</span><span class="plan-val tp">${tp1_3}</span></div>
+        <div class="plan-line"><span class="plan-label">TP4</span><span class="plan-val tp">${tp1_4}</span></div>
+        <div class="plan-line"><span class="plan-label">Lots</span><span class="plan-val">${lots}</span></div>
+        <div class="plan-line"><span class="plan-label">Risk</span><span class="plan-val risk">$${riskAmt.toFixed(2)} (1%)</span></div>
+        <div class="plan-footer">
+          <div class="footer-item">ATR SL Dist: <span>${slDist.toFixed(dig)}</span></div>
+          <div class="footer-item">Hard Cap: <span>${slCap.toFixed(dig)}</span></div>
+          <div class="footer-item">BE Rule: <span>After TP1 hit</span></div>
+          <div class="footer-item">Zone: <span>38.2/50/61.8%</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="setup-card">
+      <div class="setup-card-header">
+        <span class="setup-card-title">⬡ FibVCP v2.6 — ${activePair} ${dirLabel} — Layer 2 (Stop OCO Set B)</span>
+        <span class="quality-badge q-${quality.toLowerCase()}">Rating: ${quality}</span>
+      </div>
+      <div class="setup-card-body">
+        <div class="plan-line"><span class="plan-label">Entry</span><span class="plan-val entry">${z2_0} / ${z2_272} / ${z2_618}</span></div>
+        <div class="plan-line"><span class="plan-label">SL</span><span class="plan-val sl">${sl2}</span></div>
+        <div class="plan-line"><span class="plan-label">TP1</span><span class="plan-val tp">${tp2_1}</span></div>
+        <div class="plan-line"><span class="plan-label">TP2</span><span class="plan-val tp">${tp2_2}</span></div>
+        <div class="plan-line"><span class="plan-label">TP3</span><span class="plan-val tp">${tp2_3}</span></div>
+        <div class="plan-line"><span class="plan-label">TP4</span><span class="plan-val tp">${tp2_4}</span></div>
+        <div class="plan-line"><span class="plan-label">Lots</span><span class="plan-val">${lots}</span></div>
+        <div class="plan-line"><span class="plan-label">Risk</span><span class="plan-val risk">$${riskAmt.toFixed(2)} (1%)</span></div>
+        <div class="plan-footer">
+          <div class="footer-item">Total Risk: <span>$${(riskAmt*2).toFixed(2)}</span></div>
+          <div class="footer-item">Allocation: <span>50% / 50%</span></div>
+          <div class="footer-item">BE Rule: <span>After TP1 hit</span></div>
+          <div class="footer-item">Ext Zone: <span>0/27.2/61.8%</span></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function generateWickPrintPlan() {
+  const d = liveData[activePair];
+  const dig = DIGITS[activePair];
+  const atr = (manualApplied && manualATR) ? manualATR : d.atr;
+  const bid = manualApplied ? manualBid : d.bid;
+  const isSell = manualApplied ? (manualDir === 'SELL') : Math.random() > 0.5;
+  const dir = isSell ? -1 : 1;
+  const mult = yenMode ? 2.0 : 0.5;
+  const slDist = mult * atr;
+  const slCap  = 1.5 * atr;
+  const balance = manualApplied ? manualBalance : 10000;
+  const riskAmt = balance * (manualApplied ? manualRisk/100 : 0.01);
+
+  if(slDist > slCap * 0.9 && Math.random() > 0.65) {
+    document.getElementById('planWick').innerHTML = `
+      <div class="rejected-notice">
+        <span class="rej-icon">✕</span>
+        <span>WickPrint™ Setup REJECTED — ATR SL exceeds 1.5× Hard Cap. No override.</span>
+      </div>`;
+    addJournal(`WickPrint™ <span class="j-warn">REJECTED</span> — ATR cap exceeded`);
+    return;
+  }
+
+  const quality = Math.random() > 0.4 ? 'A' : 'B';
+  const halfLots = +(riskAmt / (slDist * 100000 * 0.2)).toFixed(2);
+  const dirLabel = isSell ? 'SELL' : 'BUY';
+
+  const m1Entry = +(bid + dir * atr * 0.3).toFixed(dig);
+  const m1SL    = +(m1Entry - dir * slDist).toFixed(dig);
+  const m1TP1   = +(m1Entry + dir * atr * 0.8).toFixed(dig);
+  const m1TP2   = +(m1Entry + dir * atr * 1.6).toFixed(dig);
+  const m1TP3   = +(m1Entry + dir * atr * 2.5).toFixed(dig);
+
+  const m2Entry = +(bid + dir * atr * 0.7).toFixed(dig);
+  const m2SL    = +(m2Entry - dir * slDist).toFixed(dig);
+  const m2TP1   = +(m2Entry + dir * atr * 0.8).toFixed(dig);
+  const m2TP2   = +(m2Entry + dir * atr * 1.6).toFixed(dig);
+  const m2TP3   = +(m2Entry + dir * atr * 2.5).toFixed(dig);
+
+  const buffer = yenMode ? '3–5 pip' : '2 pip';
+
+  document.getElementById('planWick').innerHTML = `
+    <div class="setup-card">
+      <div class="setup-card-header">
+        <span class="setup-card-title">◈ WickPrint™ v3.1 — ${activePair} ${dirLabel} — Mode 1 (Limit OCO)</span>
+        <span class="quality-badge q-${quality.toLowerCase()}">Rating: ${quality}</span>
+      </div>
+      <div class="setup-card-body">
+        <div class="plan-line"><span class="plan-label">Entry</span><span class="plan-val entry">${m1Entry}</span></div>
+        <div class="plan-line"><span class="plan-label">SL</span><span class="plan-val sl">${m1SL}</span></div>
+        <div class="plan-line"><span class="plan-label">TP1</span><span class="plan-val tp">${m1TP1}</span></div>
+        <div class="plan-line"><span class="plan-label">TP2</span><span class="plan-val tp">${m1TP2}</span></div>
+        <div class="plan-line"><span class="plan-label">TP3</span><span class="plan-val tp">${m1TP3}</span></div>
+        <div class="plan-line"><span class="plan-label">Lots</span><span class="plan-val">${halfLots}</span></div>
+        <div class="plan-line"><span class="plan-label">Risk</span><span class="plan-val risk">$${(riskAmt*0.5).toFixed(2)} (0.5%)</span></div>
+        <div class="plan-line"><span class="plan-label">Buffer</span><span class="plan-val">${buffer} OCO</span></div>
+        <div class="plan-footer">
+          <div class="footer-item">Mode Split: <span>50%</span></div>
+          <div class="footer-item">Type: <span>${isSell?'Sell':'Buy'} Limit</span></div>
+          <div class="footer-item">BE Rule: <span>After TP1</span></div>
+          <div class="footer-item">Cancel: <span>If Mode 2 hits first</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="setup-card">
+      <div class="setup-card-header">
+        <span class="setup-card-title">◈ WickPrint™ v3.1 — ${activePair} ${dirLabel} — Mode 2 (Stop OCO)</span>
+        <span class="quality-badge q-${quality.toLowerCase()}">Rating: ${quality}</span>
+      </div>
+      <div class="setup-card-body">
+        <div class="plan-line"><span class="plan-label">Entry</span><span class="plan-val entry">${m2Entry}</span></div>
+        <div class="plan-line"><span class="plan-label">SL</span><span class="plan-val sl">${m2SL}</span></div>
+        <div class="plan-line"><span class="plan-label">TP1</span><span class="plan-val tp">${m2TP1}</span></div>
+        <div class="plan-line"><span class="plan-label">TP2</span><span class="plan-val tp">${m2TP2}</span></div>
+        <div class="plan-line"><span class="plan-label">TP3</span><span class="plan-val tp">${m2TP3}</span></div>
+        <div class="plan-line"><span class="plan-label">Lots</span><span class="plan-val">${halfLots}</span></div>
+        <div class="plan-line"><span class="plan-label">Risk</span><span class="plan-val risk">$${(riskAmt*0.5).toFixed(2)} (0.5%)</span></div>
+        <div class="plan-line"><span class="plan-label">Buffer</span><span class="plan-val">${buffer} OCO</span></div>
+        <div class="plan-footer">
+          <div class="footer-item">Total Risk: <span>$${riskAmt.toFixed(2)} (1%)</span></div>
+          <div class="footer-item">Type: <span>${isSell?'Sell':'Buy'} Stop</span></div>
+          <div class="footer-item">BE Rule: <span>After TP1</span></div>
+          <div class="footer-item">Cancel: <span>If Mode 1 hits first</span></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ─── STATUS BAR: SETUP COUNT ───────────────────────────────────────────────
+function updateSbSetups() {
+  const fibCards  = document.querySelectorAll('#planFib .setup-card').length;
+  const wickCards = document.querySelectorAll('#planWick .setup-card').length;
+  const total = fibCards + wickCards;
+  const rejFib  = document.querySelectorAll('#planFib .rejected-notice').length;
+  const rejWick = document.querySelectorAll('#planWick .rejected-notice').length;
+  const el = document.getElementById('sbSetups');
+  if (!el) return;
+  if (total === 0 && (rejFib + rejWick) === 0) {
+    el.textContent = '—';
+  } else if (total === 0) {
+    el.textContent = 'Rejected';
+    el.className = 'sb-val sb-warn';
+  } else {
+    el.textContent = total + ' card' + (total !== 1 ? 's' : '');
+    el.className = 'sb-val sb-ok';
+  }
+}
+
+// ─── JOURNAL ───────────────────────────────────────────────────────────────
+function addJournal(msg) {
+  const now = new Date();
+  const sast = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+  const t = `${String(sast.getUTCHours()).padStart(2,'0')}:${String(sast.getUTCMinutes()).padStart(2,'0')}:${String(sast.getUTCSeconds()).padStart(2,'0')}`;
+  journalEvents.unshift({t, msg});
+  if(journalEvents.length > 12) journalEvents.pop();
+  const list = document.getElementById('journalList');
+  list.innerHTML = journalEvents.map(e => `
+    <div class="journal-item">
+      <span class="journal-time">${e.t}</span>
+      <span class="journal-msg">${e.msg}</span>
+    </div>`).join('');
+  document.getElementById('journalCount').textContent = journalEvents.length + ' EVENTS';
+}
+
+// ─── WEBSOCKET CONNECTION ──────────────────────────────────────────────────
+const WS_URL = 'ws://127.0.0.1:8765/ws';
+let ws = null;
+let wsConnected = false;
+let reconnectTimer = null;
+
+function connectWS() {
+  if (ws) { try { ws.close(); } catch(e){} }
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    wsConnected = true;
+    clearTimeout(reconnectTimer);
+    document.getElementById('mt5Status').textContent = '● Connecting…';
+    document.getElementById('mt5Status').className = 'sb-val';
+    // Tell backend current mode
+    ws.send(JSON.stringify({ type: 'set_mode', yen_mode: yenMode }));
+    addJournal(`WebSocket connected — <span class="j-ok">Backend Live</span>`);
+  };
+
+  ws.onmessage = (evt) => {
+    try {
+      const msg = JSON.parse(evt.data);
+      if (msg.type === 'tick')        handleTick(msg);
+      if (msg.type === 'scan_result') handleScanResult(msg);
+    } catch(e) { console.error('WS parse error', e); }
+  };
+
+  ws.onclose = () => {
+    wsConnected = false;
+    document.getElementById('mt5Status').textContent = '● Offline — retrying…';
+    document.getElementById('mt5Status').className = 'sb-val sb-warn';
+    addJournal(`WebSocket disconnected — <span class="j-warn">Retrying in 3s…</span>`);
+    // Fall back to demo loop while reconnecting
+    reconnectTimer = setTimeout(connectWS, 3000);
+  };
+
+  ws.onerror = () => {
+    wsConnected = false;
+  };
+}
+
+function handleTick(msg) {
+  // Update source indicator
+  const isLive = msg.mt5_live;
+  document.getElementById('mt5Status').textContent = isLive ? '● MT5 Live' : '● Demo Feed';
+  document.getElementById('mt5Status').className   = isLive ? 'sb-val sb-ok' : 'sb-val';
+  document.getElementById('acctBalance').textContent = '$' + Number(msg.balance).toLocaleString('en-ZA', {minimumFractionDigits:2});
+
+  // Inject pair data into liveData
+  if (msg.pairs) {
+    Object.entries(msg.pairs).forEach(([sym, d]) => {
+      // If the user has applied manual overrides for the active pair, preserve bid/atr
+      const isManualActive = manualApplied && sym === activePair;
+      liveData[sym] = {
+        bid:    isManualActive ? (liveData[sym]?.bid ?? d.bid) : d.bid,
+        ask:    d.ask,
+        open:   d.open,
+        high:   d.high,
+        low:    d.low,
+        atr:    isManualActive ? (liveData[sym]?.atr ?? d.atr_h1) : d.atr_h1,
+        spread: d.spread,
+        status: 'watch',
+        digits: d.digits,
+        point:  d.point,
+        sl_base:d.sl_base,
+        sl_cap: d.sl_cap,
+      };
+    });
+  }
+
+  // Sessions from backend
+  if (msg.sessions) {
+    const grid = document.getElementById('sessionGrid');
+    grid.innerHTML = msg.sessions.map(s => `
+      <div class="session-item${s.is_open?' active':''}">
+        <span class="session-name">${s.name}</span>
+        <span class="session-time">${s.start}–${s.end}</span>
+        <span class="session-state ${s.is_open?'open':'closed'}">${s.is_open?'OPEN':'CLOSED'}</span>
+      </div>`).join('');
+  }
+
+  // News gate from backend
+  if (msg.news) {
+    const n = msg.news;
+    const gateEl  = document.getElementById('gateStatus');
+    const gateLbl = document.getElementById('gateLabel');
+    const gateActive = yenMode ? n.gate_active_yen : n.gate_active;
+    if (gateActive) {
+      gateEl.className = 'news-gate-status gate-warn';
+      gateEl.textContent = '⚠ GATE ACTIVE — High Impact Event ≤' + (yenMode?'45':'30') + ' Min';
+      gateLbl.textContent = 'BLOCKED';
+    } else {
+      gateEl.className = 'news-gate-status gate-clear';
+      gateEl.textContent = '✓ Gate Clear — No High Impact Within ' + (yenMode?'45':'30') + ' Min';
+      gateLbl.textContent = 'CLEAR';
+    }
+    if (n.events && n.events.length) {
+      const list = document.getElementById('newsList');
+      list.innerHTML = n.events.slice(0,8).map(e => `
+        <div class="news-item ${e.impact}">
+          <div class="news-item-top">
+            <span class="news-pair">${e.currency}</span>
+            <span class="news-time">${e.time} SAST</span>
+          </div>
+          <div class="news-title">${e.title}</div>
+          <div class="news-impact impact-${e.impact}">${e.impact.toUpperCase()} IMPACT</div>
+        </div>`).join('');
+    }
+  }
+
+  // Clock from backend timestamp
+  document.getElementById('mainClock').textContent = msg.timestamp + ' SAST';
+
+  // Refresh active pair display
+  updateActivePairDisplay();
+  renderPairList();
+}
+
+function handleScanResult(msg) {
+  // Cancel the local fallback timeout now that WS has responded
+  if (scanFallbackTimer) { clearTimeout(scanFallbackTimer); scanFallbackTimer = null; }
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = false;
+  btn.textContent = '⬡ Run Setup Scan';
+  scanRunning = false;
+
+  if (msg.fib_plan)  renderFibPlan(msg.fib_plan);
+  if (msg.wick_plan) renderWickPlan(msg.wick_plan);
+  addJournal(`Scan result received — <span class="j-accent">${msg.symbol}</span> @ ${msg.timestamp}`);
+  updateSbSetups();
+}
+
+// Override runScan to send WS message instead of local generation
+function runScan() {
+  if (scanRunning) return;
+  scanRunning = true;
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true;
+  btn.textContent = '⟳ Scanning…';
+  clearPlans();
+  addJournal(`Scan initiated on <span class="j-accent">${activePair}</span>`);
+
+  if (wsConnected) {
+    ws.send(JSON.stringify({
+      type:     'scan',
+      symbol:   activePair,
+      fib_dir:  manualDir,
+      wick_dir: manualDir,
+      yen_mode: yenMode,
+    }));
+    // Timeout fallback — store ID so it can be cancelled if WS responds
+    scanFallbackTimer = setTimeout(() => {
+      if (scanRunning) {
+        generateFibVCPPlan();
+        generateWickPrintPlan();
+        btn.disabled = false;
+        btn.textContent = '⬡ Run Setup Scan';
+        scanRunning = false;
+        updateSbSetups();
+      }
+    }, 5000);
+  } else {
+    // No WS — use local demo generator
+    setTimeout(() => {
+      generateFibVCPPlan();
+      generateWickPrintPlan();
+      btn.disabled = false;
+      btn.textContent = '⬡ Run Setup Scan';
+      scanRunning = false;
+      updateSbSetups();
+      addJournal(`Scan complete (demo) — plans generated for <span class="j-accent">${activePair}</span>`);
+    }, 1000);
+  }
+}
+
+// Override toggleMode to notify backend
+const _origToggle = toggleMode;
+function toggleMode() {
+  _origToggle();
+  if (wsConnected) {
+    ws.send(JSON.stringify({ type: 'set_mode', yen_mode: yenMode }));
+  }
+}
+
+// ─── PLAN RENDERERS (driven by backend data) ─────────────────────────────
+function renderFibPlan(plan) {
+  const el = document.getElementById('planFib');
+  if (plan.rejected) {
+    el.innerHTML = `<div class="rejected-notice"><span class="rej-icon">✕</span><span>FibVCP REJECTED — ${plan.reason}</span></div>`;
+    addJournal(`FibVCP <span class="j-warn">REJECTED</span> — ${plan.reason}`);
+    return;
+  }
+  const z1 = plan.zone1, z2 = plan.zone2;
+  const q = plan.rating;
+  el.innerHTML = `
+    <div class="setup-card">
+      <div class="setup-card-header">
+        <span class="setup-card-title">⬡ FibVCP v2.6 — ${plan.pair} ${plan.direction} — ${z1.label}</span>
+        <span class="quality-badge q-${q.toLowerCase()}">Rating: ${q}</span>
+      </div>
+      <div class="setup-card-body">
+        <div class="plan-line"><span class="plan-label">Entry</span><span class="plan-val entry">${z1.entries.join(' / ')}</span></div>
+        <div class="plan-line"><span class="plan-label">SL</span><span class="plan-val sl">${z1.sl}</span></div>
+        ${z1.tps.map((t,i)=>`<div class="plan-line"><span class="plan-label">TP${i+1}</span><span class="plan-val tp">${t}</span></div>`).join('')}
+        <div class="plan-line"><span class="plan-label">Lots</span><span class="plan-val">${z1.lots}</span></div>
+        <div class="plan-line"><span class="plan-label">Risk</span><span class="plan-val risk">$${z1.risk.toFixed(2)}</span></div>
+        <div class="plan-footer">
+          <div class="footer-item">Zone: <span>${z1.zones}</span></div>
+          <div class="footer-item">Type: <span>${z1.type}</span></div>
+          <div class="footer-item">ATR: <span>${plan.atr_h1}</span></div>
+          <div class="footer-item">BE Rule: <span>After TP1</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="setup-card">
+      <div class="setup-card-header">
+        <span class="setup-card-title">⬡ FibVCP v2.6 — ${plan.pair} ${plan.direction} — ${z2.label}</span>
+        <span class="quality-badge q-${q.toLowerCase()}">Rating: ${q}</span>
+      </div>
+      <div class="setup-card-body">
+        <div class="plan-line"><span class="plan-label">Entry</span><span class="plan-val entry">${z2.entries.join(' / ')}</span></div>
+        <div class="plan-line"><span class="plan-label">SL</span><span class="plan-val sl">${z2.sl}</span></div>
+        ${z2.tps.map((t,i)=>`<div class="plan-line"><span class="plan-label">TP${i+1}</span><span class="plan-val tp">${t}</span></div>`).join('')}
+        <div class="plan-line"><span class="plan-label">Lots</span><span class="plan-val">${z2.lots}</span></div>
+        <div class="plan-line"><span class="plan-label">Risk</span><span class="plan-val risk">$${z2.risk.toFixed(2)}</span></div>
+        <div class="plan-footer">
+          <div class="footer-item">Total Risk: <span>$${plan.total_risk.toFixed(2)}</span></div>
+          <div class="footer-item">Allocation: <span>${plan.allocation}</span></div>
+          <div class="footer-item">Zone: <span>${z2.zones}</span></div>
+          <div class="footer-item">BE Rule: <span>After TP1</span></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderWickPlan(plan) {
+  const el = document.getElementById('planWick');
+  if (plan.rejected) {
+    el.innerHTML = `<div class="rejected-notice"><span class="rej-icon">✕</span><span>WickPrint™ REJECTED — ${plan.reason}</span></div>`;
+    addJournal(`WickPrint™ <span class="j-warn">REJECTED</span> — ${plan.reason}`);
+    return;
+  }
+  const m1 = plan.mode1, m2 = plan.mode2;
+  const q = plan.rating;
+  el.innerHTML = `
+    <div class="setup-card">
+      <div class="setup-card-header">
+        <span class="setup-card-title">◈ WickPrint™ v3.1 — ${plan.pair} ${plan.direction} — ${m1.label}</span>
+        <span class="quality-badge q-${q.toLowerCase()}">Rating: ${q}</span>
+      </div>
+      <div class="setup-card-body">
+        <div class="plan-line"><span class="plan-label">Entry</span><span class="plan-val entry">${m1.entry}</span></div>
+        <div class="plan-line"><span class="plan-label">SL</span><span class="plan-val sl">${m1.sl}</span></div>
+        ${m1.tps.map((t,i)=>`<div class="plan-line"><span class="plan-label">TP${i+1}</span><span class="plan-val tp">${t}</span></div>`).join('')}
+        <div class="plan-line"><span class="plan-label">Lots</span><span class="plan-val">${m1.lots}</span></div>
+        <div class="plan-line"><span class="plan-label">Risk</span><span class="plan-val risk">$${m1.risk.toFixed(2)}</span></div>
+        <div class="plan-line"><span class="plan-label">Buffer</span><span class="plan-val">${m1.buffer} OCO</span></div>
+        <div class="plan-footer">
+          <div class="footer-item">Type: <span>${m1.type}</span></div>
+          <div class="footer-item">Split: <span>50%</span></div>
+          <div class="footer-item">BE Rule: <span>After TP1</span></div>
+          <div class="footer-item">Cancel: <span>If Mode 2 first</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="setup-card">
+      <div class="setup-card-header">
+        <span class="setup-card-title">◈ WickPrint™ v3.1 — ${plan.pair} ${plan.direction} — ${m2.label}</span>
+        <span class="quality-badge q-${q.toLowerCase()}">Rating: ${q}</span>
+      </div>
+      <div class="setup-card-body">
+        <div class="plan-line"><span class="plan-label">Entry</span><span class="plan-val entry">${m2.entry}</span></div>
+        <div class="plan-line"><span class="plan-label">SL</span><span class="plan-val sl">${m2.sl}</span></div>
+        ${m2.tps.map((t,i)=>`<div class="plan-line"><span class="plan-label">TP${i+1}</span><span class="plan-val tp">${t}</span></div>`).join('')}
+        <div class="plan-line"><span class="plan-label">Lots</span><span class="plan-val">${m2.lots}</span></div>
+        <div class="plan-line"><span class="plan-label">Risk</span><span class="plan-val risk">$${m2.risk.toFixed(2)}</span></div>
+        <div class="plan-line"><span class="plan-label">Buffer</span><span class="plan-val">${m2.buffer} OCO</span></div>
+        <div class="plan-footer">
+          <div class="footer-item">Total Risk: <span>$${plan.total_risk.toFixed(2)}</span></div>
+          <div class="footer-item">Type: <span>${m2.type}</span></div>
+          <div class="footer-item">BE Rule: <span>After TP1</span></div>
+          <div class="footer-item">Cancel: <span>If Mode 1 first</span></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ─── DEMO FALLBACK LOOP (runs when WS offline) ────────────────────────────
+function demoLoop() {
+  if (!wsConnected) {
+    tickPrices();
+    updateClock();
+    updateActivePairDisplay();
+    renderPairList();
+  }
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────
+addJournal(`Agent initialised — <span class="j-ok">Connecting to backend…</span>`);
+addJournal(`Default pair: <span class="j-accent">XAUUSD</span> | Mode: <span class="j-accent">Standard</span>`);
+renderNews();
+renderPairList();
+updateActivePairDisplay();
+updateClock();
+
+// Start demo loop as fallback while WS connects
+setInterval(demoLoop, 1000);
+
+// Connect WebSocket to Phase 2 backend
+connectWS();
+</script>
+</body>
+</html>
